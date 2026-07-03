@@ -16,12 +16,15 @@ Axiom Commerce Lab is intentionally different. It is designed to demonstrate the
 - PostgreSQL-backed storefront data;
 - typed read models for UI-facing data access;
 - realistic stock and reservation foundations;
+- URL-addressable catalog filtering;
 - documented architectural decisions;
 - a roadmap toward search, checkout, admin operations, observability and deployment.
 
 ## Current status
 
-Current version: `0.1.0`
+Current stable version: `0.1.0`
+
+Current milestone: `v0.2.0 - Product Listing Experience` in progress.
 
 Foundation release includes:
 
@@ -34,6 +37,16 @@ Foundation release includes:
 - demo catalog seed;
 - database-backed storefront pages;
 - ADRs and architecture documentation.
+
+The product listing milestone currently adds:
+
+- category filters;
+- brand filters;
+- availability filters;
+- price range filters;
+- sorting by featured, name and price;
+- URL state for shareable catalog views;
+- catalog facets derived from the database-backed read model.
 
 ## Applications
 
@@ -57,6 +70,18 @@ Current implemented routes:
 /
 /products
 /products/[slug]
+```
+
+Example product listing URLs:
+
+```txt
+/products
+/products?category=laptops
+/products?brand=nomad
+/products?availability=low-stock
+/products?minPrice=300&maxPrice=1000
+/products?sort=price-desc
+/products?category=laptops&brand=nomad&availability=in-stock&sort=price-desc
 ```
 
 ### Admin cockpit
@@ -99,7 +124,8 @@ The database package owns:
 - PostgreSQL client;
 - migration scripts;
 - seed scripts;
-- catalog read-model queries.
+- catalog read-model queries;
+- catalog facet queries.
 
 The storefront consumes UI-ready read models rather than raw table shapes.
 
@@ -145,6 +171,38 @@ Brand
 
 This allows the project to support realistic technology-commerce features such as product variants, category-aware specifications, dynamic filtering, comparison, multi-warehouse inventory and future stock reservations.
 
+### Catalog read model
+
+The storefront reads catalog data through typed query functions instead of reading raw tables directly.
+
+Current query surface:
+
+```txt
+getFeaturedProductCards(limit)
+getCatalogProductCards(options)
+getCatalogFacets()
+getProductBySlug(slug)
+```
+
+The product listing page accepts filter state from `searchParams`, normalizes it into a catalog query object and generates filter links back into URL query parameters.
+
+Current filter dimensions:
+
+```txt
+category
+brand
+availability
+minPrice
+maxPrice
+sort
+```
+
+Availability is calculated from inventory using this invariant:
+
+```txt
+available_stock = on_hand - reserved - safety_stock
+```
+
 ## Tech stack
 
 Current foundation:
@@ -161,7 +219,7 @@ Current foundation:
 
 Planned additions:
 
-- search projection for faceted catalog navigation;
+- search projection for advanced faceted catalog navigation;
 - cart and checkout flows;
 - secure sandbox payments;
 - stock reservation workflow;
@@ -308,14 +366,28 @@ As the project matures, this section will expand to include:
 - Demo seed
 - Database-backed storefront
 
-### v0.2.0 - Product listing experience
+### v0.2.0 - Product Listing Experience
 
-- Category, brand, price and availability filters
+Status: in progress.
+
+Implemented:
+
+- category filters
+- brand filters
+- availability filters
+- price range filters
 - URL state for filters and sorting
-- improved product grid states
-- catalog read model expansion
+- catalog facets
+- product grid empty state
 
-### v0.3.0 - Product detail experience
+Remaining before tag:
+
+- extract product listing UI into focused components
+- add an ADR for URL-based catalog state
+- improve mobile filter ergonomics
+- harden facet behavior and document current query trade-offs
+
+### v0.3.0 - Product Detail Experience
 
 - richer product media
 - variant selection
@@ -323,14 +395,14 @@ As the project matures, this section will expand to include:
 - comparable specs
 - stock-aware product configuration
 
-### v0.4.0 - Cart foundation
+### v0.4.0 - Cart Foundation
 
 - cart drawer
 - guest cart persistence
 - server validation
 - price and availability validation
 
-### v0.5.0 - Checkout and stock reservation
+### v0.5.0 - Checkout and Stock Reservation
 
 - checkout session
 - transactional stock reservation
@@ -338,7 +410,7 @@ As the project matures, this section will expand to include:
 - sandbox payment flow
 - order creation
 
-### v0.6.0 - Admin cockpit
+### v0.6.0 - Admin Cockpit
 
 - catalog management
 - inventory management
@@ -346,7 +418,7 @@ As the project matures, this section will expand to include:
 - order overview
 - audit logs
 
-### v0.7.0 - Search and faceted navigation
+### v0.7.0 - Search and Faceted Navigation
 
 - search projection
 - dynamic facets
@@ -361,7 +433,7 @@ As the project matures, this section will expand to include:
 - performance budgets
 - error handling
 
-### v1.0.0 - Portfolio release
+### v1.0.0 - Portfolio Release
 
 - deployed demo
 - polished README and docs
@@ -375,6 +447,7 @@ As the project matures, this section will expand to include:
 - UI primitives should remain reusable and framework-agnostic.
 - Database tables should not leak directly into page components.
 - Storefront pages should consume typed read models.
+- Catalog filter state should be URL-addressable.
 - Inventory correctness should be treated as a core business invariant.
 - Performance is a product feature, not a final decoration pass.
 
