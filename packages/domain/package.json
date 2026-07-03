@@ -1,0 +1,22 @@
+{
+  "name": "@axiom/domain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./catalog": "./src/catalog/index.ts",
+    "./inventory": "./src/inventory/index.ts",
+    "./pricing": "./src/pricing/index.ts",
+    "./checkout": "./src/checkout/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"lint domain\"",
+    "test": "echo \"test domain\""
+  },
+  "devDependencies": {
+    "typescript": "latest"
+  }
+}

@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: axiom-commerce-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: axiom
+      POSTGRES_PASSWORD: axiom
+      POSTGRES_DB: axiom_commerce_lab
+    ports:
+      - "5432:5432"
+    volumes:
+      - axiom_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  axiom_postgres_data:

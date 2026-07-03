@@ -1,0 +1,4 @@
+@import "../../../packages/ui/src/styles/globals.css";
+
+@source "../../../apps/admin/app";
+@source "../../../packages/ui/src";
