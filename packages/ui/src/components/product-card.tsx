@@ -5,7 +5,7 @@ import { Badge, type BadgeTone } from "./badge";
 
 type ProductCardBadge = {
   label: string;
-  tone?: BadgeTone;
+  tone?: BadgeTone | undefined;
 };
 
 type ProductCardProps = {
@@ -13,11 +13,11 @@ type ProductCardProps = {
   brand: string;
   name: string;
   price: string;
-  kicker?: string;
-  availability?: string;
-  badges?: ProductCardBadge[];
-  media?: ReactNode;
-  className?: string;
+  kicker?: string | undefined;
+  availability?: string | undefined;
+  badges?: ProductCardBadge[] | undefined;
+  media?: ReactNode | undefined;
+  className?: string | undefined;
 };
 
 function ProductCard({

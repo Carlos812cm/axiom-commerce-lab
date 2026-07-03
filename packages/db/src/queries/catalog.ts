@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 
 import { db } from "../client";
 import {
@@ -12,10 +12,32 @@ import {
   skus
 } from "../schema";
 
+export type CatalogProductAvailability = "in-stock" | "low-stock" | "out-of-stock";
+
+export type CatalogProductSort =
+  | "featured"
+  | "name-asc"
+  | "price-asc"
+  | "price-desc";
+
+export type CatalogProductQueryOptions = {
+  featuredOnly?: boolean;
+  limit?: number;
+  categorySlug?: string;
+  brandSlug?: string;
+  availability?: CatalogProductAvailability;
+  minPriceCents?: number;
+  maxPriceCents?: number;
+  sort?: CatalogProductSort;
+};
+
 export type CatalogProductCard = {
   productId: string;
   slug: string;
   brand: string;
+  brandSlug: string;
+  category: string;
+  categorySlug: string;
   name: string;
   subtitle: string | null;
   skuCode: string;
@@ -23,6 +45,26 @@ export type CatalogProductCard = {
   currencyCode: string;
   availableStock: number;
   isFeatured: boolean;
+};
+
+export type CatalogFacetOption = {
+  slug: string;
+  label: string;
+  count: number;
+};
+
+export type CatalogFacets = {
+  categories: CatalogFacetOption[];
+  brands: CatalogFacetOption[];
+  availability: {
+    inStock: number;
+    lowStock: number;
+    outOfStock: number;
+  };
+  priceRange: {
+    minAmountCents: number;
+    maxAmountCents: number;
+  };
 };
 
 export type CatalogProductDetail = {
@@ -71,6 +113,9 @@ function mapCardRow(row: {
   productId: string;
   slug: string;
   brand: string;
+  brandSlug: string;
+  category: string;
+  categorySlug: string;
   name: string;
   subtitle: string | null;
   skuCode: string;
@@ -85,30 +130,93 @@ function mapCardRow(row: {
   };
 }
 
-async function selectCatalogProductCards(options: {
-  featuredOnly?: boolean;
-  limit?: number;
-}): Promise<CatalogProductCard[]> {
-  const whereClause = options.featuredOnly
-    ? and(
-        eq(products.status, "active"),
-        eq(products.isFeatured, true),
-        eq(productVariants.isDefault, true),
-        eq(skus.status, "active"),
-        eq(prices.status, "active")
-      )
-    : and(
-        eq(products.status, "active"),
-        eq(productVariants.isDefault, true),
-        eq(skus.status, "active"),
-        eq(prices.status, "active")
-      );
+function matchesAvailability(
+  product: CatalogProductCard,
+  availability: CatalogProductAvailability | undefined
+): boolean {
+  if (!availability) {
+    return true;
+  }
+
+  if (availability === "in-stock") {
+    return product.availableStock > 0;
+  }
+
+  if (availability === "low-stock") {
+    return product.availableStock > 0 && product.availableStock <= 5;
+  }
+
+  return product.availableStock <= 0;
+}
+
+function sortCatalogCards(
+  cards: CatalogProductCard[],
+  sort: CatalogProductSort | undefined
+): CatalogProductCard[] {
+  const sorted = [...cards];
+
+  if (sort === "name-asc") {
+    sorted.sort((left, right) => left.name.localeCompare(right.name));
+    return sorted;
+  }
+
+  if (sort === "price-asc") {
+    sorted.sort((left, right) => left.amountCents - right.amountCents);
+    return sorted;
+  }
+
+  if (sort === "price-desc") {
+    sorted.sort((left, right) => right.amountCents - left.amountCents);
+    return sorted;
+  }
+
+  sorted.sort(
+    (left, right) =>
+      Number(right.isFeatured) - Number(left.isFeatured) ||
+      left.name.localeCompare(right.name)
+  );
+
+  return sorted;
+}
+
+async function selectCatalogProductCards(
+  options: CatalogProductQueryOptions = {}
+): Promise<CatalogProductCard[]> {
+  const conditions: SQL[] = [
+    eq(products.status, "active"),
+    eq(productVariants.isDefault, true),
+    eq(skus.status, "active"),
+    eq(prices.status, "active")
+  ];
+
+  if (options.featuredOnly) {
+    conditions.push(eq(products.isFeatured, true));
+  }
+
+  if (options.categorySlug) {
+    conditions.push(eq(categories.slug, options.categorySlug));
+  }
+
+  if (options.brandSlug) {
+    conditions.push(eq(brands.slug, options.brandSlug));
+  }
+
+  if (typeof options.minPriceCents === "number") {
+    conditions.push(gte(prices.amountCents, options.minPriceCents));
+  }
+
+  if (typeof options.maxPriceCents === "number") {
+    conditions.push(lte(prices.amountCents, options.maxPriceCents));
+  }
 
   const query = db
     .select({
       productId: products.id,
       slug: products.slug,
       brand: brands.name,
+      brandSlug: brands.slug,
+      category: categories.name,
+      categorySlug: categories.slug,
       name: products.title,
       subtitle: products.subtitle,
       skuCode: skus.code,
@@ -129,11 +237,12 @@ async function selectCatalogProductCards(options: {
     })
     .from(products)
     .innerJoin(brands, eq(products.brandId, brands.id))
+    .innerJoin(categories, eq(products.categoryId, categories.id))
     .innerJoin(productVariants, eq(productVariants.productId, products.id))
     .innerJoin(skus, eq(skus.variantId, productVariants.id))
     .innerJoin(prices, eq(prices.skuId, skus.id))
     .leftJoin(inventoryItems, eq(inventoryItems.skuId, skus.id))
-    .where(whereClause)
+    .where(and(...conditions))
     .groupBy(
       products.id,
       products.slug,
@@ -141,6 +250,9 @@ async function selectCatalogProductCards(options: {
       products.subtitle,
       products.isFeatured,
       brands.name,
+      brands.slug,
+      categories.name,
+      categories.slug,
       skus.code,
       prices.amountCents,
       prices.currencyCode
@@ -149,11 +261,84 @@ async function selectCatalogProductCards(options: {
 
   const rows = typeof options.limit === "number" ? await query.limit(options.limit) : await query;
 
-  return rows.map(mapCardRow);
+  const cards = rows
+    .map(mapCardRow)
+    .filter((product) => matchesAvailability(product, options.availability));
+
+  return sortCatalogCards(cards, options.sort).slice(0, options.limit);
 }
 
-export async function getCatalogProductCards(): Promise<CatalogProductCard[]> {
-  return selectCatalogProductCards({});
+function incrementFacetCount(
+  map: Map<string, CatalogFacetOption>,
+  slug: string,
+  label: string
+): void {
+  const current = map.get(slug);
+
+  if (current) {
+    current.count += 1;
+    return;
+  }
+
+  map.set(slug, {
+    slug,
+    label,
+    count: 1
+  });
+}
+
+function sortFacetOptions(options: CatalogFacetOption[]): CatalogFacetOption[] {
+  return [...options].sort((left, right) => left.label.localeCompare(right.label));
+}
+
+export async function getCatalogFacets(): Promise<CatalogFacets> {
+  const cards = await selectCatalogProductCards();
+
+  const categoriesMap = new Map<string, CatalogFacetOption>();
+  const brandsMap = new Map<string, CatalogFacetOption>();
+
+  let minAmountCents = Number.POSITIVE_INFINITY;
+  let maxAmountCents = 0;
+
+  const availability = {
+    inStock: 0,
+    lowStock: 0,
+    outOfStock: 0
+  };
+
+  for (const product of cards) {
+    incrementFacetCount(categoriesMap, product.categorySlug, product.category);
+    incrementFacetCount(brandsMap, product.brandSlug, product.brand);
+
+    minAmountCents = Math.min(minAmountCents, product.amountCents);
+    maxAmountCents = Math.max(maxAmountCents, product.amountCents);
+
+    if (product.availableStock <= 0) {
+      availability.outOfStock += 1;
+    } else {
+      availability.inStock += 1;
+
+      if (product.availableStock <= 5) {
+        availability.lowStock += 1;
+      }
+    }
+  }
+
+  return {
+    categories: sortFacetOptions([...categoriesMap.values()]),
+    brands: sortFacetOptions([...brandsMap.values()]),
+    availability,
+    priceRange: {
+      minAmountCents: Number.isFinite(minAmountCents) ? minAmountCents : 0,
+      maxAmountCents
+    }
+  };
+}
+
+export async function getCatalogProductCards(
+  options: CatalogProductQueryOptions = {}
+): Promise<CatalogProductCard[]> {
+  return selectCatalogProductCards(options);
 }
 
 export async function getFeaturedProductCards(limit = 3): Promise<CatalogProductCard[]> {
