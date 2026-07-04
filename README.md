@@ -17,12 +17,15 @@ Axiom Commerce Lab is intentionally different. It is designed to demonstrate the
 - typed read models for UI-facing data access;
 - realistic stock and reservation foundations;
 - URL-addressable catalog filtering;
+- product detail pages backed by variants, inventory and specifications;
 - documented architectural decisions;
 - a roadmap toward search, checkout, admin operations, observability and deployment.
 
 ## Current status
 
 Current stable version: `0.2.0`
+
+Current milestone: `v0.3.0 - Product Detail Experience` in progress.
 
 Foundation release includes:
 
@@ -48,6 +51,15 @@ The product listing release adds:
 - focused product listing components;
 - mobile filter disclosure UI;
 - ADR 0004 for URL-based catalog state.
+
+The product detail milestone currently adds:
+
+- media stage component;
+- stock-aware purchase panel;
+- SKU, price and availability presentation;
+- color/variant metadata display;
+- grouped specification matrix;
+- product detail read model enrichment from PostgreSQL.
 
 ## Applications
 
@@ -83,6 +95,15 @@ Example product listing URLs:
 /products?minPrice=300&maxPrice=1000
 /products?sort=price-desc
 /products?category=laptops&brand=nomad&availability=in-stock&sort=price-desc
+```
+
+Example product detail URLs:
+
+```txt
+/products/arc-phone-pro
+/products/nomadbook-14
+/products/aura-max
+/products/keystone-dock-pro
 ```
 
 ### Admin cockpit
@@ -126,7 +147,8 @@ The database package owns:
 - migration scripts;
 - seed scripts;
 - catalog read-model queries;
-- catalog facet queries.
+- catalog facet queries;
+- product detail read-model queries.
 
 The storefront consumes UI-ready read models rather than raw table shapes.
 
@@ -221,6 +243,21 @@ apps/web/app/products/_components/catalog-product-grid.tsx
 `catalog-filter-state.ts` owns parsing URL state and generating product listing URLs.
 
 The component files own rendering concerns for filters, sorting and the product grid.
+
+### Product detail structure
+
+The product detail route is split into focused units:
+
+```txt
+apps/web/app/products/[slug]/page.tsx
+apps/web/app/products/[slug]/_components/product-media-stage.tsx
+apps/web/app/products/[slug]/_components/product-purchase-panel.tsx
+apps/web/app/products/[slug]/_components/product-spec-matrix.tsx
+```
+
+`getProductBySlug(slug)` returns product identity, media, variants, price, stock availability and grouped SKU specifications.
+
+The PDP currently renders the first active variant as the selected configuration. Interactive variant selection will be introduced later as part of the product detail milestone.
 
 ## Tech stack
 
@@ -405,11 +442,23 @@ Implemented:
 
 ### v0.3.0 - Product Detail Experience
 
-- richer product media
-- variant selection
-- specification matrix
-- comparable specs
-- stock-aware product configuration
+Status: in progress.
+
+Implemented:
+
+- media stage
+- stock-aware purchase panel
+- SKU, price and availability presentation
+- grouped specification matrix
+- enriched product detail read model
+
+Remaining before tag:
+
+- interactive variant selection
+- richer media/gallery behavior
+- comparison-ready specification presentation
+- ADR for product detail read-model strategy
+- final README release update
 
 ### v0.4.0 - Cart Foundation
 
@@ -464,6 +513,7 @@ Implemented:
 - Database tables should not leak directly into page components.
 - Storefront pages should consume typed read models.
 - Catalog filter state should be URL-addressable.
+- Product detail pages should be driven by catalog, variant, price, inventory and specification read models.
 - Inventory correctness should be treated as a core business invariant.
 - Performance is a product feature, not a final decoration pass.
 
