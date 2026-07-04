@@ -22,9 +22,7 @@ Axiom Commerce Lab is intentionally different. It is designed to demonstrate the
 
 ## Current status
 
-Current stable version: `0.1.0`
-
-Next candidate tag: `v0.2.0 - Product Listing Experience`
+Current stable version: `0.2.0`
 
 Foundation release includes:
 
@@ -38,7 +36,7 @@ Foundation release includes:
 - database-backed storefront pages;
 - ADRs and architecture documentation.
 
-The product listing milestone adds:
+The product listing release adds:
 
 - category filters;
 - brand filters;
@@ -390,7 +388,7 @@ As the project matures, this section will expand to include:
 
 ### v0.2.0 - Product Listing Experience
 
-Status: ready for tag after final local verification.
+Status: released.
 
 Implemented:
 
