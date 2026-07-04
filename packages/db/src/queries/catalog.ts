@@ -9,7 +9,10 @@ import {
   productMedia,
   products,
   productVariants,
-  skus
+  skus,
+  skuSpecificationValues,
+  specificationDefinitions,
+  specificationGroups
 } from "../schema";
 
 export type CatalogProductAvailability = "in-stock" | "low-stock" | "out-of-stock";
@@ -67,6 +70,22 @@ export type CatalogFacets = {
   };
 };
 
+export type CatalogProductSpecification = {
+  key: string;
+  label: string;
+  unit: string | null;
+  dataType: "text" | "number" | "boolean" | "json";
+  isComparable: boolean;
+  value: string | number | boolean | Record<string, unknown> | null;
+  displayValue: string;
+};
+
+export type CatalogProductSpecificationGroup = {
+  groupId: string;
+  name: string;
+  specifications: CatalogProductSpecification[];
+};
+
 export type CatalogProductDetail = {
   productId: string;
   slug: string;
@@ -94,6 +113,7 @@ export type CatalogProductDetail = {
     currencyCode: string;
     availableStock: number;
   }[];
+  specificationGroups: CatalogProductSpecificationGroup[];
 };
 
 function toNumber(value: unknown): number {
@@ -107,6 +127,10 @@ function toNumber(value: unknown): number {
   }
 
   return 0;
+}
+
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
 }
 
 function mapCardRow(row: {
@@ -291,6 +315,109 @@ function sortFacetOptions(options: CatalogFacetOption[]): CatalogFacetOption[] {
   return [...options].sort((left, right) => left.label.localeCompare(right.label));
 }
 
+function resolveSpecificationValue(row: {
+  dataType: "text" | "number" | "boolean" | "json";
+  unit: string | null;
+  valueText: string | null;
+  valueNumber: string | null;
+  valueBoolean: boolean | null;
+  valueJson: Record<string, unknown> | null;
+}): {
+  value: string | number | boolean | Record<string, unknown> | null;
+  displayValue: string;
+} {
+  if (row.dataType === "text") {
+    return {
+      value: row.valueText,
+      displayValue: row.valueText ?? "—"
+    };
+  }
+
+  if (row.dataType === "number") {
+    const value = toNumber(row.valueNumber);
+    const displayValue = row.unit ? `${formatNumber(value)} ${row.unit}` : formatNumber(value);
+
+    return {
+      value,
+      displayValue
+    };
+  }
+
+  if (row.dataType === "boolean") {
+    return {
+      value: row.valueBoolean,
+      displayValue: row.valueBoolean ? "Yes" : "No"
+    };
+  }
+
+  return {
+    value: row.valueJson,
+    displayValue: row.valueJson ? JSON.stringify(row.valueJson) : "—"
+  };
+}
+
+async function getSpecificationGroupsForSku(
+  skuId: string
+): Promise<CatalogProductSpecificationGroup[]> {
+  const rows = await db
+    .select({
+      groupId: specificationGroups.id,
+      groupName: specificationGroups.name,
+      key: specificationDefinitions.key,
+      label: specificationDefinitions.label,
+      unit: specificationDefinitions.unit,
+      dataType: specificationDefinitions.dataType,
+      isComparable: specificationDefinitions.isComparable,
+      valueText: skuSpecificationValues.valueText,
+      valueNumber: skuSpecificationValues.valueNumber,
+      valueBoolean: skuSpecificationValues.valueBoolean,
+      valueJson: skuSpecificationValues.valueJson
+    })
+    .from(skuSpecificationValues)
+    .innerJoin(
+      specificationDefinitions,
+      eq(skuSpecificationValues.specificationDefinitionId, specificationDefinitions.id)
+    )
+    .innerJoin(specificationGroups, eq(specificationDefinitions.groupId, specificationGroups.id))
+    .where(eq(skuSpecificationValues.skuId, skuId))
+    .orderBy(asc(specificationGroups.sortOrder), asc(specificationDefinitions.sortOrder));
+
+  const groups = new Map<string, CatalogProductSpecificationGroup>();
+
+  for (const row of rows) {
+    const currentGroup =
+      groups.get(row.groupId) ??
+      ({
+        groupId: row.groupId,
+        name: row.groupName,
+        specifications: []
+      } satisfies CatalogProductSpecificationGroup);
+
+    const resolvedValue = resolveSpecificationValue({
+      dataType: row.dataType,
+      unit: row.unit,
+      valueText: row.valueText,
+      valueNumber: row.valueNumber,
+      valueBoolean: row.valueBoolean,
+      valueJson: row.valueJson
+    });
+
+    currentGroup.specifications.push({
+      key: row.key,
+      label: row.label,
+      unit: row.unit,
+      dataType: row.dataType,
+      isComparable: row.isComparable,
+      value: resolvedValue.value,
+      displayValue: resolvedValue.displayValue
+    });
+
+    groups.set(row.groupId, currentGroup);
+  }
+
+  return [...groups.values()];
+}
+
 export async function getCatalogFacets(): Promise<CatalogFacets> {
   const cards = await selectCatalogProductCards();
 
@@ -416,6 +543,11 @@ export async function getProductBySlug(slug: string): Promise<CatalogProductDeta
     )
     .orderBy(asc(productVariants.sortOrder), asc(skus.title));
 
+  const variants = variantRows.map((variant) => ({
+    ...variant,
+    availableStock: Math.max(0, toNumber(variant.availableStock))
+  }));
+
   const mediaRows = await db
     .select({
       url: productMedia.url,
@@ -428,12 +560,15 @@ export async function getProductBySlug(slug: string): Promise<CatalogProductDeta
     .where(eq(productMedia.productId, product.productId))
     .orderBy(asc(productMedia.sortOrder));
 
+  const primarySkuId = variants[0]?.skuId;
+  const specificationGroups = primarySkuId
+    ? await getSpecificationGroupsForSku(primarySkuId)
+    : [];
+
   return {
     ...product,
     media: mediaRows,
-    variants: variantRows.map((variant) => ({
-      ...variant,
-      availableStock: Math.max(0, toNumber(variant.availableStock))
-    }))
+    variants,
+    specificationGroups
   };
 }
