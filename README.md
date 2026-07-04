@@ -24,7 +24,7 @@ Axiom Commerce Lab is intentionally different. It is designed to demonstrate the
 
 Current stable version: `0.1.0`
 
-Current milestone: `v0.2.0 - Product Listing Experience` in progress.
+Next candidate tag: `v0.2.0 - Product Listing Experience`
 
 Foundation release includes:
 
@@ -38,7 +38,7 @@ Foundation release includes:
 - database-backed storefront pages;
 - ADRs and architecture documentation.
 
-The product listing milestone currently adds:
+The product listing milestone adds:
 
 - category filters;
 - brand filters;
@@ -46,7 +46,10 @@ The product listing milestone currently adds:
 - price range filters;
 - sorting by featured, name and price;
 - URL state for shareable catalog views;
-- catalog facets derived from the database-backed read model.
+- catalog facets derived from the database-backed read model;
+- focused product listing components;
+- mobile filter disclosure UI;
+- ADR 0004 for URL-based catalog state.
 
 ## Applications
 
@@ -203,6 +206,24 @@ Availability is calculated from inventory using this invariant:
 available_stock = on_hand - reserved - safety_stock
 ```
 
+### Product listing structure
+
+The product listing route is split into focused units:
+
+```txt
+apps/web/app/products/page.tsx
+apps/web/app/products/_lib/catalog-filter-state.ts
+apps/web/app/products/_components/catalog-filters.tsx
+apps/web/app/products/_components/product-sort-toolbar.tsx
+apps/web/app/products/_components/catalog-product-grid.tsx
+```
+
+`page.tsx` owns orchestration: parse filters, fetch data and compose layout.
+
+`catalog-filter-state.ts` owns parsing URL state and generating product listing URLs.
+
+The component files own rendering concerns for filters, sorting and the product grid.
+
 ## Tech stack
 
 Current foundation:
@@ -337,6 +358,7 @@ Important ADRs:
 - `docs/adr/0001-architecture-style.md`
 - `docs/adr/0002-design-system-strategy.md`
 - `docs/adr/0003-catalog-data-model.md`
+- `docs/adr/0004-url-based-catalog-state.md`
 
 ## Quality gates
 
@@ -368,7 +390,7 @@ As the project matures, this section will expand to include:
 
 ### v0.2.0 - Product Listing Experience
 
-Status: in progress.
+Status: ready for tag after final local verification.
 
 Implemented:
 
@@ -379,13 +401,9 @@ Implemented:
 - URL state for filters and sorting
 - catalog facets
 - product grid empty state
-
-Remaining before tag:
-
-- extract product listing UI into focused components
-- add an ADR for URL-based catalog state
-- improve mobile filter ergonomics
-- harden facet behavior and document current query trade-offs
+- focused product listing components
+- mobile filter disclosure UI
+- ADR for URL-based catalog state
 
 ### v0.3.0 - Product Detail Experience
 
